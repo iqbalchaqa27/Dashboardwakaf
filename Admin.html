@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Dashboard Wakaf</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f3f4f6;
+      }
+      .kpi-card {
+        background-color: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px #0000001a, 0 2px 4px -2px #0000001a;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px #0000001a, 0 4px 6px -4px #0000001a;
+      }
+      .chart-container {
+        background-color: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px #0000001a, 0 2px 4px -2px #0000001a;
+      }
+      input[type="file"]::file-selector-button {
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      input[type="file"]::file-selector-button:hover {
+        background-color: #2563eb;
+      }
+      .sort-btn {
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: background-color 0.2s, color 0.2s;
+      }
+      .sort-btn.active {
+        background-color: #1d4ed8;
+        color: white;
+      }
+      .sort-btn.inactive {
+        background-color: #e5e7eb;
+        color: #374151;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-8">
+      <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">ADMIN - Dashboard Wakaf</h1>
+          <p class="text-gray-600 mt-1">Gunakan halaman ini untuk mengunggah dan mempublikasikan data.</p>
+        </div>
+        <div class="mt-4 md:mt-0">
+          <label for="csvFile" class="block text-sm font-medium text-gray-700 mb-1">Upload & Publikasi Data (.csv)</label>
+          <input
+            type="file"
+            id="csvFile"
+            accept=".csv"
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
+      </header>
+      <!-- Konten HTML (KPI, Charts, Table) tetap sama -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Total Dana Terkumpul</h3>
+          <p id="totalDana" class="text-3xl font-bold mt-2">Rp 0</p>
+          <p class="text-xs text-gray-500 mt-1">Menunggu data...</p>
+        </div>
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Jumlah Program</h3>
+          <p id="jumlahProgram" class="text-3xl font-bold mt-2">0</p>
+          <p class="text-xs text-gray-500 mt-1">Program aktif</p>
+        </div>
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Transaksi</h3>
+          <p id="jumlahTransaksi" class="text-3xl font-bold mt-2">0</p>
+          <p class="text-xs text-gray-500 mt-1">Total transaksi</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Tren Penghimpunan Dana</h3>
+          <div class="relative flex-grow h-80"><canvas id="fundraisingTrendChart"></canvas></div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Top 5 Program Wakaf</h3>
+          <div class="relative flex-grow h-80"><canvas id="programChart"></canvas></div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Metode Wakaf</h3>
+          <div class="relative flex-grow h-80"><canvas id="metodeChart"></canvas></div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Jenis Wakif</h3>
+          <div class="relative flex-grow h-80"><canvas id="jenisWakifChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold">Riwayat Transaksi</h3>
+          <div><button id="sortNewest" class="sort-btn active">Terbaru</button><button id="sortOldest" class="sort-btn inactive ml-2">Terlama</button></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="transactionTableBody" class="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colspan="3" class="px-6 py-12 text-center text-gray-500">Silakan upload file CSV untuk mempublikasikan data.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Semua logika JavaScript sekarang berada di dalam satu script module -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+      import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+      // --- START: BAGIAN FIREBASE ---
+
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "firebase/app";
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
+
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyCXDbFPZTSTnrWGCsTtIJnDzPKokXPbP_s",
+        authDomain: "dashboard-wakaf.firebaseapp.com",
+        projectId: "dashboard-wakaf",
+        storageBucket: "dashboard-wakaf.firebasestorage.app",
+        messagingSenderId: "170168279599",
+        appId: "1:170168279599:web:e02720e1e55077a0b6dcda",
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+
+      if (firebaseConfig.apiKey.startsWith("GANTI_DENGAN")) {
+        alert("PENTING: Konfigurasi Firebase Anda belum diisi. Silakan ikuti tutorial untuk mendapatkan kunci (API Key) dan tempel di dalam kode file admin.html agar data bisa dipublikasikan.");
+      }
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      async function publishData(data) {
+        const dataDocRef = doc(db, "dashboardData", "main");
+        try {
+          await setDoc(dataDocRef, {
+            transactions: JSON.stringify(data),
+            lastUpdated: new Date(),
+          });
+          alert("Data berhasil dipublikasikan!");
+          updateDashboard(data);
+        } catch (error) {
+          console.error("Error publishing data: ", error);
+          alert("Gagal mempublikasikan data. Cek koneksi atau konfigurasi Firebase.");
+        }
+      }
+      // --- END: BAGIAN FIREBASE ---
+
+      // Kode lain untuk dashboard...
+      Chart.register(ChartDataLabels);
+
+      let fundraisingChart, programChart, metodeChart, jenisWakifChart;
+      let allTransactions = [];
+      let currentSortOrder = "newest";
+
+      const fundraisingCtx = document.getElementById("fundraisingTrendChart").getContext("2d");
+      const programCtx = document.getElementById("programChart").getContext("2d");
+      const metodeCtx = document.getElementById("metodeChart").getContext("2d");
+      const jenisWakifCtx = document.getElementById("jenisWakifChart").getContext("2d");
+
+      // Fungsi yang sama dari sebelumnya untuk update tampilan
+      function updateDashboard(data) {
+        allTransactions = data;
+        const K_PROGRAM = "Program";
+        const K_JUMLAH = "Jumlah";
+        const totalDana = allTransactions.reduce((a, b) => a + (parseFloat(b[K_JUMLAH]) || 0), 0);
+        const programUnik = new Set(allTransactions.map((a) => a[K_PROGRAM]));
+        document.getElementById("totalDana").innerText = `Rp ${totalDana.toLocaleString("id-ID")}`;
+        document.getElementById("jumlahProgram").innerText = programUnik.size;
+        document.getElementById("jumlahTransaksi").innerText = allTransactions.length.toLocaleString("id-ID");
+        updateCharts(allTransactions);
+        renderTransactionTable();
+      }
+
+      function updateCharts(data) {
+        const K_TANGGAL = "Tanggal transaksi";
+        const K_PROGRAM = "Program";
+        const K_JUMLAH = "Jumlah";
+        const K_METODE = "Metode";
+        const K_JENIS_WAKIF = "Jenis Wakif";
+
+        const monthlyData = {};
+        data.forEach((row) => {
+          const dateStr = row[K_TANGGAL] ? row[K_TANGGAL].replace(/(\d+)\/(\d+)\/(\d+)/, "$2/$1/$3") : null;
+          if (!dateStr) return;
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, "0");
+            const sortableKey = `${year}-${month}`;
+
+            if (!monthlyData[sortableKey]) {
+              monthlyData[sortableKey] = 0;
+            }
+            monthlyData[sortableKey] += parseFloat(row[K_JUMLAH]) || 0;
+          }
+        });
+
+        const sortedKeys = Object.keys(monthlyData).sort();
+        const trendLabels = sortedKeys.map((key) => {
+          const [year, month] = key.split("-");
+          const date = new Date(year, month - 1);
+          return date.toLocaleString("id-ID", { month: "short", year: "numeric" });
+        });
+        const trendData = sortedKeys.map((key) => monthlyData[key]);
+        fundraisingChart.data.labels = trendLabels;
+        fundraisingChart.data.datasets[0].data = trendData;
+        fundraisingChart.update();
+
+        const programPerformanceData = {};
+        data.forEach((row) => {
+          const program = row[K_PROGRAM] || "Lainnya";
+          if (!programPerformanceData[program]) {
+            programPerformanceData[program] = 0;
+          }
+          programPerformanceData[program] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+
+        const sortedPrograms = Object.entries(programPerformanceData).sort(([, a], [, c]) => c - a);
+        const topPrograms = sortedPrograms.slice(0, 5);
+        const programLabels = topPrograms.map((item) => {
+          const label = item[0];
+          const maxLength = 30;
+          return label.length > maxLength ? label.substring(0, maxLength) + "..." : label;
+        });
+        const programValues = topPrograms.map((item) => item[1]);
+        programChart.data.labels = programLabels;
+        programChart.data.datasets[0].data = programValues;
+        programChart.options.plugins.tooltip.callbacks.title = function (tooltipItems) {
+          const dataIndex = tooltipItems[0].dataIndex;
+          return topPrograms[dataIndex] ? topPrograms[dataIndex][0] : "";
+        };
+        programChart.update();
+
+        const metodePerformanceData = {};
+        data.forEach((row) => {
+          const metode = row[K_METODE] || "Tidak Diketahui";
+          if (!metodePerformanceData[metode]) {
+            metodePerformanceData[metode] = 0;
+          }
+          metodePerformanceData[metode] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+        const metodeLabels = Object.keys(metodePerformanceData);
+        const metodeValues = Object.values(metodePerformanceData);
+        metodeChart.data.labels = metodeLabels;
+        metodeChart.data.datasets[0].data = metodeValues;
+        metodeChart.update();
+
+        const jenisWakifPerformanceData = {};
+        data.forEach((row) => {
+          const jenisWakif = row[K_JENIS_WAKIF] || "Tidak Diketahui";
+          if (!jenisWakifPerformanceData[jenisWakif]) {
+            jenisWakifPerformanceData[jenisWakif] = 0;
+          }
+          jenisWakifPerformanceData[jenisWakif] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+        const jenisWakifLabels = Object.keys(jenisWakifPerformanceData);
+        const jenisWakifValues = Object.values(jenisWakifPerformanceData);
+        jenisWakifChart.data.labels = jenisWakifLabels;
+        jenisWakifChart.data.datasets[0].data = jenisWakifValues;
+        jenisWakifChart.update();
+      }
+
+      function renderTransactionTable() {
+        const tableBody = document.getElementById("transactionTableBody");
+        tableBody.innerHTML = "";
+        if (allTransactions.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="3" class="px-6 py-12 text-center text-gray-500">Data tidak ditemukan.</td></tr>';
+          return;
+        }
+        const K_TANGGAL = "Tanggal transaksi";
+        const sortedData = [...allTransactions].sort((a, b) => {
+          const dateAStr = a[K_TANGGAL] ? a[K_TANGGAL].split("/") : ["01", "01", "1970"];
+          const dateBStr = b[K_TANGGAL] ? b[K_TANGGAL].split("/") : ["01", "01", "1970"];
+          const dateA = new Date(+dateAStr[2], dateAStr[1] - 1, +dateAStr[0]);
+          const dateB = new Date(+dateBStr[2], dateBStr[1] - 1, +dateBStr[0]);
+          return currentSortOrder === "newest" ? dateB - dateA : dateA - dateB;
+        });
+        const limitedData = sortedData.slice(0, 10);
+        limitedData.forEach((row) => {
+          const K_PROGRAM = "Program";
+          const K_JUMLAH = "Jumlah";
+          const tr = document.createElement("tr");
+          const displayDate = row[K_TANGGAL]
+            ? new Date(row[K_TANGGAL].replace(/(\d+)\/(\d+)\/(\d+)/, "$2/$1/$3")).toLocaleDateString("id-ID", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
+            : "N/A";
+          tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${displayDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row[K_PROGRAM]}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rp ${(parseFloat(row[K_JUMLAH]) || 0).toLocaleString("id-ID")}</td>
+                `;
+          tableBody.appendChild(tr);
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        // Inisialisasi semua chart seperti sebelumnya
+        fundraisingChart = new Chart(fundraisingCtx, {
+          type: "line",
+          data: { labels: [], datasets: [{ label: "Penghimpunan (Rp)", data: [], borderColor: "rgb(59, 130, 246)", tension: 0.1, fill: true, backgroundColor: "rgba(59, 130, 246, 0.1)" }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+              legend: { display: true, position: "top" },
+              datalabels: { display: true, anchor: "end", align: "top", color: "#4b5563", font: { weight: "bold" }, formatter: (a) => (a >= 1e6 ? (a / 1e6).toFixed(1) + "Jt" : (a / 1e3).toFixed(0) + "Rb") },
+            },
+          },
+        });
+        programChart = new Chart(programCtx, {
+          type: "bar",
+          data: { labels: [], datasets: [{ label: "Total Terkumpul (Rp)", data: [], backgroundColor: "rgb(16, 185, 129)", borderColor: "rgb(16, 185, 129)", borderWidth: 1 }] },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { left: 10 } },
+            scales: { x: { beginAtZero: true, ticks: { callback: (a) => (a >= 1e6 ? `Rp ${a / 1e6} Jt` : `Rp ${a / 1e3} Rb`) } } },
+            plugins: {
+              legend: { display: true, position: "top" },
+              tooltip: {
+                callbacks: {
+                  title: function (a) {
+                    return a[0].label;
+                  },
+                },
+              },
+              datalabels: {
+                display: true,
+                anchor: "end",
+                align: "end",
+                offset: -5,
+                color: "white",
+                font: { weight: "bold", size: 10 },
+                formatter: (a, b) => {
+                  const c = Math.max(...b.chart.data.datasets[0].data);
+                  return a < c * 0.07 ? "" : a >= 1e6 ? `${(a / 1e6).toFixed(1)}Jt` : `${(a / 1e3).toFixed(0)}Rb`;
+                },
+              },
+            },
+          },
+        });
+        metodeChart = new Chart(metodeCtx, {
+          type: "doughnut",
+          data: { labels: [], datasets: [{ label: "Metode (Rp)", data: [], backgroundColor: ["#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#6366F1"], hoverOffset: 4 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "top" },
+              datalabels: {
+                display: true,
+                color: "white",
+                font: { weight: "bold" },
+                formatter: (a, b) => {
+                  let c = 0,
+                    d = b.chart.data.datasets[0].data;
+                  d.map((a) => {
+                    c += a;
+                  });
+                  if (0 === c) return "0%";
+                  let e = ((a * 100) / c).toFixed(1) + "%";
+                  return e;
+                },
+              },
+            },
+          },
+        });
+        jenisWakifChart = new Chart(jenisWakifCtx, {
+          type: "doughnut",
+          data: { labels: [], datasets: [{ label: "Jenis Wakif (Rp)", data: [], backgroundColor: ["#06B6D4", "#F97316", "#14B8A6", "#A855F7"], hoverOffset: 4 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "top" },
+              datalabels: {
+                display: true,
+                color: "white",
+                font: { weight: "bold" },
+                formatter: (a, b) => {
+                  let c = 0,
+                    d = b.chart.data.datasets[0].data;
+                  d.map((a) => {
+                    c += a;
+                  });
+                  if (0 === c) return "0%";
+                  let e = ((a * 100) / c).toFixed(1) + "%";
+                  return e;
+                },
+              },
+            },
+          },
+        });
+
+        // Event listener tombol sortir
+        const sortNewestBtn = document.getElementById("sortNewest");
+        const sortOldestBtn = document.getElementById("sortOldest");
+        sortNewestBtn.addEventListener("click", () => {
+          currentSortOrder = "newest";
+          sortNewestBtn.classList.replace("inactive", "active");
+          sortOldestBtn.classList.replace("active", "inactive");
+          renderTransactionTable();
+        });
+        sortOldestBtn.addEventListener("click", () => {
+          currentSortOrder = "oldest";
+          sortOldestBtn.classList.replace("inactive", "active");
+          sortNewestBtn.classList.replace("active", "inactive");
+          renderTransactionTable();
+        });
+
+        // Event listener untuk upload file
+        document.getElementById("csvFile").addEventListener("change", (event) => {
+          const file = event.target.files[0];
+          if (file) {
+            Papa.parse(file, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                if (results.data && results.errors.length === 0) {
+                  publishData(results.data);
+                } else {
+                  console.error("Error parsing CSV:", results.errors);
+                  alert("Gagal memproses file CSV. Pastikan format kolomnya benar.");
+                }
+              },
+            });
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard Laporan Wakaf Interaktif</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f3f4f6;
+      }
+      .kpi-card {
+        background-color: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      }
+      .chart-container {
+        background-color: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+      /* Style for file input */
+      input[type="file"]::file-selector-button {
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      input[type="file"]::file-selector-button:hover {
+        background-color: #2563eb;
+      }
+      /* Styles for sort buttons */
+      .sort-btn {
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: background-color 0.2s, color 0.2s;
+      }
+      .sort-btn.active {
+        background-color: #1d4ed8;
+        color: white;
+      }
+      .sort-btn.inactive {
+        background-color: #e5e7eb;
+        color: #374151;
+      }
+      .filter-select {
+        background-color: white;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        padding: 0.5rem;
+        font-size: 0.875rem;
+      }
+      .filter-select:disabled {
+        background-color: #f3f4f6;
+        cursor: not-allowed;
+      }
+      .reset-btn {
+        background-color: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        font-size: 0.875rem;
+      }
+      .reset-btn:hover {
+        background-color: #dc2626;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-8">
+      <header class="mb-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900">Dashboard Penghimpunan Wakaf</h1>
+            <p class="text-gray-600 mt-1">Laporan real-time performa penghimpunan dana wakaf.</p>
+          </div>
+          <div class="mt-4 md:mt-0">
+            <label for="csvFile" class="block text-sm font-medium text-gray-700 mb-1">Upload Data Transaksi (.csv)</label>
+            <input
+              type="file"
+              id="csvFile"
+              accept=".csv"
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+          </div>
+        </div>
+
+        <div id="filter-section" class="mt-6 p-4 bg-white rounded-lg shadow flex flex-col md:flex-row gap-4 items-center hidden">
+          <div class="flex items-center gap-2">
+            <label for="monthFilter" class="text-sm font-medium text-gray-700">Bulan:</label>
+            <select id="monthFilter" class="filter-select" disabled>
+              <option value="">Semua Bulan</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="weekFilter" class="text-sm font-medium text-gray-700">Minggu:</label>
+            <select id="weekFilter" class="filter-select" disabled>
+              <option value="">Semua Minggu</option>
+              <option value="1">Minggu ke-1</option>
+              <option value="2">Minggu ke-2</option>
+              <option value="3">Minggu ke-3</option>
+              <option value="4">Minggu ke-4</option>
+              <option value="5">Minggu ke-5</option>
+            </select>
+          </div>
+          <button id="clearFilterBtn" class="reset-btn">Reset Filter</button>
+        </div>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Total Dana Terkumpul</h3>
+          <p id="totalDana" class="text-3xl font-bold mt-2">Rp 0</p>
+          <p id="kpi-subtitle" class="text-xs text-gray-500 mt-1">Menunggu data...</p>
+        </div>
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Jumlah Program</h3>
+          <p id="jumlahProgram" class="text-3xl font-bold mt-2">0</p>
+          <p class="text-xs text-gray-500 mt-1">Program aktif</p>
+        </div>
+        <div class="kpi-card">
+          <h3 class="text-sm font-medium text-gray-500">Transaksi</h3>
+          <p id="jumlahTransaksi" class="text-3xl font-bold mt-2">0</p>
+          <p class="text-xs text-gray-500 mt-1">Total transaksi</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Tren Penghimpunan Dana</h3>
+          <div class="relative flex-grow h-80">
+            <canvas id="fundraisingTrendChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Top 5 Program Wakaf</h3>
+          <div class="relative flex-grow h-80">
+            <canvas id="programChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Metode Wakaf</h3>
+          <div class="relative flex-grow h-80">
+            <canvas id="metodeChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-container flex flex-col">
+          <h3 class="text-lg font-semibold mb-4">Jenis Wakif</h3>
+          <div class="relative flex-grow h-80">
+            <canvas id="jenisWakifChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold">Riwayat Transaksi</h3>
+          <div>
+            <button id="sortNewest" class="sort-btn active">Terbaru</button>
+            <button id="sortOldest" class="sort-btn inactive ml-2">Terlama</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="transactionTableBody" class="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colspan="3" class="px-6 py-12 text-center text-gray-500">Silakan upload file CSV untuk melihat data.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- Register Chart.js Datalabels Plugin Globally ---
+      Chart.register(ChartDataLabels);
+
+      // --- INSTANCE CHART & VARIABEL GLOBAL ---
+      let fundraisingChart, programChart, metodeChart, jenisWakifChart;
+      let allTransactions = [];
+      let currentSortOrder = "newest"; // 'newest' or 'oldest'
+
+      const fundraisingCtx = document.getElementById("fundraisingTrendChart").getContext("2d");
+      const programCtx = document.getElementById("programChart").getContext("2d");
+      const metodeCtx = document.getElementById("metodeChart").getContext("2d");
+      const jenisWakifCtx = document.getElementById("jenisWakifChart").getContext("2d");
+
+      // --- NEW: Filter Elements ---
+      const filterSection = document.getElementById("filter-section");
+      const monthFilter = document.getElementById("monthFilter");
+      const weekFilter = document.getElementById("weekFilter");
+      const clearFilterBtn = document.getElementById("clearFilterBtn");
+
+      // --- COLUMN CONSTANTS ---
+      const K_TANGGAL = "Tanggal transaksi";
+      const K_PROGRAM = "Program";
+      const K_JUMLAH = "Jumlah";
+      const K_METODE = "Metode";
+      const K_JENIS_WAKIF = "Jenis Wakif";
+
+      // --- HELPER FUNCTION: Parse Indonesian Date ---
+      function parseDate(dateStr) {
+        if (!dateStr) return null;
+        // Handles DD/MM/YYYY
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          // new Date(year, monthIndex, day)
+          const date = new Date(+parts[2], parts[1] - 1, +parts[0]);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return null;
+      }
+
+      // --- NEW: HELPER FUNCTION: Get week of the month ---
+      function getWeekOfMonth(date) {
+        // We consider the week to start on the 1st, 8th, 15th, 22nd, and 29th.
+        const dayOfMonth = date.getDate();
+        if (dayOfMonth <= 7) return 1;
+        if (dayOfMonth <= 14) return 2;
+        if (dayOfMonth <= 21) return 3;
+        if (dayOfMonth <= 28) return 4;
+        return 5;
+      }
+
+      // --- NEW: FUNGSI UNTUK MENGISI FILTER ---
+      function populateFilters(data) {
+        const uniqueMonths = new Set();
+        data.forEach((row) => {
+          const date = parseDate(row[K_TANGGAL]);
+          if (date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, "0");
+            uniqueMonths.add(`${year}-${month}`);
+          }
+        });
+
+        // Clear previous options
+        monthFilter.innerHTML = '<option value="">Semua Bulan</option>';
+
+        const sortedMonths = Array.from(uniqueMonths).sort().reverse();
+        sortedMonths.forEach((monthStr) => {
+          const [year, month] = monthStr.split("-");
+          const date = new Date(year, month - 1);
+          const optionText = date.toLocaleString("id-ID", { month: "long", year: "numeric" });
+          const option = new Option(optionText, monthStr);
+          monthFilter.add(option);
+        });
+
+        // Show and enable filters
+        filterSection.classList.remove("hidden");
+        monthFilter.disabled = false;
+        weekFilter.disabled = false;
+      }
+
+      // --- NEW: FUNGSI UNTUK MENERAPKAN FILTER DAN MENGGAMBAR ULANG DASHBOARD ---
+      function applyFiltersAndRedraw() {
+        const selectedMonth = monthFilter.value;
+        const selectedWeek = weekFilter.value;
+
+        let filteredData = [...allTransactions];
+
+        if (selectedMonth) {
+          filteredData = filteredData.filter((row) => {
+            const date = parseDate(row[K_TANGGAL]);
+            if (!date) return false;
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, "0");
+            return `${year}-${month}` === selectedMonth;
+          });
+        }
+
+        if (selectedWeek) {
+          filteredData = filteredData.filter((row) => {
+            const date = parseDate(row[K_TANGGAL]);
+            return date ? getWeekOfMonth(date) == selectedWeek : false;
+          });
+        }
+
+        // Update subtitle to reflect current filter
+        const kpiSubtitle = document.getElementById("kpi-subtitle");
+        if (selectedMonth || selectedWeek) {
+          const monthText = monthFilter.options[monthFilter.selectedIndex].text;
+          const weekText = selectedWeek ? `, Minggu ke-${selectedWeek}` : "";
+          kpiSubtitle.innerText = `Filter: ${monthText}${weekText}`;
+        } else {
+          kpiSubtitle.innerText = `Semua data`;
+        }
+
+        updateVisuals(filteredData);
+      }
+
+      // --- REFACTORED: FUNGSI UNTUK UPDATE SEMUA VISUAL (KPI, CHARTS, TABLE) ---
+      function updateVisuals(data) {
+        // 1. Hitung dan tampilkan KPI
+        const totalDana = data.reduce((sum, row) => sum + (parseFloat(row[K_JUMLAH]) || 0), 0);
+        const programUnik = new Set(data.map((row) => row[K_PROGRAM]));
+
+        document.getElementById("totalDana").innerText = `Rp ${totalDana.toLocaleString("id-ID")}`;
+        document.getElementById("jumlahProgram").innerText = programUnik.size;
+        document.getElementById("jumlahTransaksi").innerText = data.length.toLocaleString("id-ID");
+
+        // 2. Update semua chart
+        updateCharts(data);
+
+        // 3. Render ulang tabel transaksi
+        renderTransactionTable(data);
+      }
+
+      function updateCharts(data) {
+        // 2. Proses data untuk Tren Penghimpunan (Line Chart)
+        const monthlyData = {};
+        data.forEach((row) => {
+          const date = parseDate(row[K_TANGGAL]);
+          if (date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, "0");
+            const sortableKey = `${year}-${month}`;
+            if (!monthlyData[sortableKey]) monthlyData[sortableKey] = 0;
+            monthlyData[sortableKey] += parseFloat(row[K_JUMLAH]) || 0;
+          }
+        });
+
+        const sortedKeys = Object.keys(monthlyData).sort();
+        const trendLabels = sortedKeys.map((key) => {
+          const [year, month] = key.split("-");
+          return new Date(year, month - 1).toLocaleString("id-ID", { month: "short", year: "numeric" });
+        });
+        const trendData = sortedKeys.map((key) => monthlyData[key]);
+        fundraisingChart.data.labels = trendLabels;
+        fundraisingChart.data.datasets[0].data = trendData;
+        fundraisingChart.update();
+
+        // 3. Proses data untuk Penghimpunan per Program (Bar Chart)
+        const programPerformanceData = {};
+        data.forEach((row) => {
+          const program = row[K_PROGRAM] || "Lainnya";
+          if (!programPerformanceData[program]) programPerformanceData[program] = 0;
+          programPerformanceData[program] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+
+        const sortedPrograms = Object.entries(programPerformanceData).sort(([, a], [, b]) => b - a);
+        const topPrograms = sortedPrograms.slice(0, 5);
+
+        const programLabels = topPrograms.map((item) => {
+          const label = item[0];
+          const maxLength = 30;
+          return label.length > maxLength ? label.substring(0, maxLength) + "..." : label;
+        });
+        const programValues = topPrograms.map((item) => item[1]);
+        programChart.data.labels = programLabels;
+        programChart.data.datasets[0].data = programValues;
+        programChart.options.plugins.tooltip.callbacks.title = (tooltipItems) => (topPrograms[tooltipItems[0].dataIndex] ? topPrograms[tooltipItems[0].dataIndex][0] : "");
+        programChart.update();
+
+        // 4. Proses data untuk Metode Wakaf (Doughnut Chart)
+        const metodePerformanceData = {};
+        data.forEach((row) => {
+          const metode = row[K_METODE] || "Tidak Diketahui";
+          if (!metodePerformanceData[metode]) metodePerformanceData[metode] = 0;
+          metodePerformanceData[metode] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+
+        metodeChart.data.labels = Object.keys(metodePerformanceData);
+        metodeChart.data.datasets[0].data = Object.values(metodePerformanceData);
+        metodeChart.update();
+
+        // 5. Proses data untuk Jenis Wakif (Doughnut Chart)
+        const jenisWakifPerformanceData = {};
+        data.forEach((row) => {
+          const jenisWakif = row[K_JENIS_WAKIF] || "Tidak Diketahui";
+          if (!jenisWakifPerformanceData[jenisWakif]) jenisWakifPerformanceData[jenisWakif] = 0;
+          jenisWakifPerformanceData[jenisWakif] += parseFloat(row[K_JUMLAH]) || 0;
+        });
+
+        jenisWakifChart.data.labels = Object.keys(jenisWakifPerformanceData);
+        jenisWakifChart.data.datasets[0].data = Object.values(jenisWakifPerformanceData);
+        jenisWakifChart.update();
+      }
+
+      // --- FUNGSI UNTUK MERENDER TABEL TRANSAKSI (DIMODIFIKASI) ---
+      function renderTransactionTable(data) {
+        const tableBody = document.getElementById("transactionTableBody");
+        tableBody.innerHTML = "";
+
+        if (!data || data.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="3" class="px-6 py-12 text-center text-gray-500">Data tidak ditemukan untuk filter ini.</td></tr>';
+          return;
+        }
+
+        const sortedData = [...data].sort((a, b) => {
+          const dateA = parseDate(a[K_TANGGAL]) || new Date(0);
+          const dateB = parseDate(b[K_TANGGAL]) || new Date(0);
+          return currentSortOrder === "newest" ? dateB - dateA : dateA - dateB;
+        });
+
+        const limitedData = sortedData.slice(0, 10);
+        limitedData.forEach((row) => {
+          const tr = document.createElement("tr");
+          const displayDate = parseDate(row[K_TANGGAL])?.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }) || "N/A";
+          tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${displayDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row[K_PROGRAM]}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rp ${(parseFloat(row[K_JUMLAH]) || 0).toLocaleString("id-ID")}</td>
+          `;
+          tableBody.appendChild(tr);
+        });
+      }
+
+      // --- FUNGSI UTAMA YANG DIPANGGIL SETELAH UPLOAD CSV (DIMODIFIKASI) ---
+      function processNewData(data) {
+        allTransactions = data; // Simpan data asli secara global
+        populateFilters(allTransactions); // Isi filter berdasarkan data
+        applyFiltersAndRedraw(); // Tampilkan dashboard dengan data penuh
+      }
+
+      // --- INISIALISASI ---
+      document.addEventListener("DOMContentLoaded", () => {
+        // Inisialisasi Chart (tidak ada perubahan di sini)
+        fundraisingChart = new Chart(fundraisingCtx, {
+          type: "line",
+          data: { labels: [], datasets: [{ label: "Penghimpunan (Rp)", data: [], borderColor: "rgb(59, 130, 246)", tension: 0.1, fill: true, backgroundColor: "rgba(59, 130, 246, 0.1)" }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+              legend: { display: true, position: "top" },
+              datalabels: { display: true, anchor: "end", align: "top", color: "#4b5563", font: { weight: "bold" }, formatter: (v) => (v >= 1e6 ? (v / 1e6).toFixed(1) + "Jt" : (v / 1e3).toFixed(0) + "Rb") },
+            },
+          },
+        });
+        programChart = new Chart(programCtx, {
+          type: "bar",
+          data: { labels: [], datasets: [{ label: "Total Terkumpul (Rp)", data: [], backgroundColor: "rgb(16, 185, 129)", borderColor: "rgb(16, 185, 129)", borderWidth: 1 }] },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { left: 10 } },
+            scales: { x: { beginAtZero: true, ticks: { callback: (v) => (v >= 1e6 ? `Rp ${v / 1e6} Jt` : `Rp ${v / 1e3} Rb`) } } },
+            plugins: {
+              legend: { display: true, position: "top" },
+              tooltip: { callbacks: { title: (tooltipItems) => tooltipItems[0].label } },
+              datalabels: {
+                display: true,
+                anchor: "end",
+                align: "end",
+                offset: -5,
+                color: "white",
+                font: { weight: "bold", size: 10 },
+                formatter: (value, context) => {
+                  const maxVal = Math.max(...context.chart.data.datasets[0].data);
+                  if (value < maxVal * 0.07) {
+                    return "";
+                  }
+                  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}Jt`;
+                  return `${(value / 1e3).toFixed(0)}Rb`;
+                },
+              },
+            },
+          },
+        });
+        metodeChart = new Chart(metodeCtx, {
+          type: "doughnut",
+          data: { labels: [], datasets: [{ label: "Metode (Rp)", data: [], backgroundColor: ["#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#6366F1"], hoverOffset: 4 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "top" },
+              datalabels: {
+                display: true,
+                color: "white",
+                font: { weight: "bold" },
+                formatter: (value, ctx) => {
+                  let sum = 0;
+                  let dataArr = ctx.chart.data.datasets[0].data;
+                  dataArr.map((data) => (sum += data));
+                  if (sum === 0) return "0%";
+                  let percentage = ((value * 100) / sum).toFixed(1) + "%";
+                  return percentage;
+                },
+              },
+            },
+          },
+        });
+        jenisWakifChart = new Chart(jenisWakifCtx, {
+          type: "doughnut",
+          data: { labels: [], datasets: [{ label: "Jenis Wakif (Rp)", data: [], backgroundColor: ["#06B6D4", "#F97316", "#14B8A6", "#A855F7"], hoverOffset: 4 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "top" },
+              datalabels: {
+                display: true,
+                color: "white",
+                font: { weight: "bold" },
+                formatter: (value, ctx) => {
+                  let sum = 0;
+                  let dataArr = ctx.chart.data.datasets[0].data;
+                  dataArr.map((data) => (sum += data));
+                  if (sum === 0) return "0%";
+                  let percentage = ((value * 100) / sum).toFixed(1) + "%";
+                  return percentage;
+                },
+              },
+            },
+          },
+        });
+
+        // Event Listener untuk Tombol Sortir
+        const sortNewestBtn = document.getElementById("sortNewest");
+        const sortOldestBtn = document.getElementById("sortOldest");
+        sortNewestBtn.addEventListener("click", () => {
+          currentSortOrder = "newest";
+          sortNewestBtn.classList.replace("inactive", "active");
+          sortOldestBtn.classList.replace("active", "inactive");
+          applyFiltersAndRedraw(); // Re-render table with new sort
+        });
+        sortOldestBtn.addEventListener("click", () => {
+          currentSortOrder = "oldest";
+          sortOldestBtn.classList.replace("inactive", "active");
+          sortNewestBtn.classList.replace("active", "inactive");
+          applyFiltersAndRedraw(); // Re-render table with new sort
+        });
+
+        // --- NEW: Event Listener untuk Filter ---
+        monthFilter.addEventListener("change", applyFiltersAndRedraw);
+        weekFilter.addEventListener("change", applyFiltersAndRedraw);
+        clearFilterBtn.addEventListener("click", () => {
+          monthFilter.value = "";
+          weekFilter.value = "";
+          applyFiltersAndRedraw();
+        });
+
+        // Event Listener untuk File Upload
+        document.getElementById("csvFile").addEventListener("change", (event) => {
+          const file = event.target.files[0];
+          if (file) {
+            Papa.parse(file, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                if (results.data && results.errors.length === 0) {
+                  console.log("Data berhasil diparsing:", results.data);
+                  processNewData(results.data); // Panggil fungsi proses data baru
+                } else {
+                  console.error("Error parsing CSV:", results.errors);
+                  alert("Gagal memproses file CSV. Pastikan format kolomnya benar.");
+                }
+              },
+            });
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
